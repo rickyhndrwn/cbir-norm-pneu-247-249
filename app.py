@@ -1,6 +1,6 @@
 from PIL import Image
 from datetime import datetime
-from flask import Flask, request, render_template
+from flask import Flask, request, render_template, redirect, url_for
 from pathlib import Path
 from tensorflow.keras.models import load_model
 import numpy as np
@@ -26,11 +26,16 @@ features = np.load(feature_dir + '/features.npy')
 @app.route('/', methods=['GET', 'POST'])
 def index():
     if request.method == 'POST':
-        file = request.files['query_img']
+        try:
+            file = request.files['query_img']
+            img = Image.open(file.stream)  # PIL image
+            uploaded_img_path = "static/uploaded/" + datetime.now().isoformat().replace(":", ".") + "_" + file.filename
+        except:
+            filename = request.form.get('query_img')
+            img = Image.open(filename)
+            uploaded_img_path = "static/uploaded/" + datetime.now().isoformat().replace(":", ".") + "_" + filename.split('/')[-1]
 
         # Save query image
-        img = Image.open(file.stream)  # PIL image
-        uploaded_img_path = "static/uploaded/" + datetime.now().isoformat().replace(":", ".") + "_" + file.filename
         img.save(uploaded_img_path)
 
         # Run search
@@ -42,27 +47,6 @@ def index():
         return render_template('index.html',
                                query_path=uploaded_img_path,
                                scores=scores)
-    else:
-        return render_template('index.html')
-
-@app.route('/sample', methods=['GET', 'POST'])
-def cbir_retrieve():
-    if request.method == 'POST':
-        filename = request.form.get('query_img')
-        # Save query image
-        img = Image.open(filename)
-        uploaded_img_path = "static/uploaded/" + datetime.now().isoformat().replace(":", ".") + "_" + filename.split('/')[-1]
-        img.save(uploaded_img_path)
-
-        # Run search
-        query = fe.extract(img)
-        dists = np.linalg.norm(features-query, axis=1)  # L2 distances to features
-        ids = np.argsort(dists)[:9]  # Top 9 results
-        scores = [(dists[id], img_paths[id]) for id in ids]
-
-        return render_template('index.html',
-                                query_path=uploaded_img_path,
-                                scores=scores)
     else:
         return render_template('index.html')
 
